@@ -26,9 +26,12 @@ function validateProject(input) {
   const settings = {...defaults,...input.settings};
   const validation = validateWaitPattern(settings.waitPattern);
   if (!validation.valid) throw new Error(validation.error);
-  for (const key of ['cutFeed','rapidFeed','rotationFeed']) if (!(Number(settings[key]) > 0)) throw new Error('Feed rates must be greater than zero.');
-  if (!(Number(settings.toolChangeSeconds) >= 0)) throw new Error('Tool-change time cannot be negative.');
+  for (const key of ['cutFeed','rapidFeed','rotationFeed']) if (!Number.isFinite(Number(settings[key])) || !(Number(settings[key]) > 0)) throw new Error('Feed rates must be finite and greater than zero.');
+  if (!Number.isFinite(Number(settings.toolChangeSeconds)) || !(Number(settings.toolChangeSeconds) >= 0)) throw new Error('Tool-change time must be finite and cannot be negative.');
   if (!['1','2','3','4'].includes(String(settings.hChannel)) || !['1','2','3','4'].includes(String(settings.vChannel)) || String(settings.hChannel) === String(settings.vChannel)) throw new Error('Choose two different channels from 1–4.');
+  settings.hChannel=String(settings.hChannel);settings.vChannel=String(settings.vChannel);
+  if(typeof settings.waitTemplate!=='string'||!settings.waitTemplate.includes('{id}'))throw new Error('The wait insertion template must contain {id}.');
+  settings.waitParticipantMode=settings.waitParticipantMode==='ignore'?'ignore':'exact';
   const overrides = {};
   if (input.overrides && typeof input.overrides === 'object') for (const [key,value] of Object.entries(input.overrides)) if (Number.isFinite(value) && value >= 0) overrides[key] = value;
   const identities={h:[],v:[]},seen=new Set();
@@ -145,7 +148,7 @@ function renderSelection() {
   const block=selected&&blocks[selected.channel].find(b=>b.id===selected.id);
   if(!block){$('#selection-details').innerHTML='<div class="section-label">BLOCK DETAILS</div><div class="empty-selection">Select a block to inspect its time or set a duration.</div>';return;}
   const dt=blockDuration(block.id),manual=state.overrides[block.id];
-  $('#selection-details').innerHTML=`<div class="section-label">BLOCK DETAILS <span>${selected.channel==='h'?'HORIZONTAL':'VERTICAL'}</span></div><h3 class="selection-title">${escape(block.title)}</h3><div class="selection-meta">Lines ${block.startLine}–${block.endLine} · ${escape(block.kind)}<br>Estimated ${time(dt,true)}${block.sync?`<br>${escape(block.sync.key)} · ${escape(block.sync.role)}`:''}</div>${block.sync?'<p class="field-hint">Sync time is calculated from when each channel reaches this point.</p>':pinned(block)?'<p class="field-hint">Program boundary is pinned. Edit its code in place or in Source view.</p>':`<label class="override-label" for="duration-override">Duration override <input id="duration-override" type="number" min="0" step="0.1" placeholder="auto" value="${manual??''}" aria-label="Block duration override in seconds"> sec</label>${manual!==undefined?'<button id="reset-duration" class="override-reset">Use calculated time</button>':''}<p class="field-hint" style="font-size:9px;margin-bottom:0">Set seconds for an arc, subprogram or measured operation.</p><button id="delete-block" class="delete-block">Remove selected block</button>`}`;
+  $('#selection-details').innerHTML=`<div class="section-label">BLOCK DETAILS <span>${selected.channel==='h'?'HORIZONTAL':'VERTICAL'}</span></div><h3 class="selection-title">${escape(block.title)}</h3><div class="selection-meta">Lines ${block.startLine}–${block.endLine} · ${escape(block.kind)}<br>Estimated ${time(dt,true)}${block.sync?`<br>${escape(block.sync.key)} · ${escape(block.sync.role)}`:''}</div>${block.sync?'<p class="field-hint">Sync time is calculated from when each channel reaches this point.</p>':pinned(block)?'<p class="field-hint">Program boundary is pinned. Edit its code in place or in Source view.</p>':`<label class="override-label" for="duration-override">Duration override <input id="duration-override" type="number" min="0" step="0.1" placeholder="auto" value="${manual??''}" aria-label="Block duration override in seconds"> sec</label><button id="apply-duration" class="button small duration-apply">Apply duration</button>${manual!==undefined?'<button id="reset-duration" class="override-reset">Use calculated time</button>':''}<p class="field-hint" style="font-size:9px;margin-bottom:0">Enter seconds, then Apply or press Enter.</p><button id="delete-block" class="delete-block">Remove selected block</button>`}`;
 }
 function move(channel,from,to) {
   if(!blocks[channel][from]||pinned(blocks[channel][from]))return;
@@ -226,12 +229,14 @@ $('#source-board').addEventListener('click',event=>{
   const input=$(`#source-${c}`);const normalized=state.sources[c].replace(/\r\n|\r/g,'\n');
   if(input.value!==normalized){remember();state.sources[c]=rawFromInput(input.value,state.sources[c],c);delete sourceDrafts[c];recalculate();toast(`${c==='h'?'Horizontal':'Vertical'} source applied`);}
 });
-$('#selection-details').addEventListener('change',event=>{
-  if(event.target.id!=='duration-override'||!selected)return;
-  const value=event.target.value;if(value!==''&&(!Number.isFinite(Number(value))||Number(value)<0))return;
-  remember();if(value==='')delete state.overrides[selected.id];else state.overrides[selected.id]=Number(value);recalculate();
-});
+function applyDuration(){
+  const input=$('#duration-override');if(!input||!selected)return;
+  const value=input.value;if(!input.checkValidity()||(value!==''&&(!Number.isFinite(Number(value))||Number(value)<0))){input.reportValidity();return;}
+  remember();if(value==='')delete state.overrides[selected.id];else state.overrides[selected.id]=Number(value);recalculate();toast('Block duration updated');
+}
+$('#selection-details').addEventListener('keydown',event=>{if(event.target.id==='duration-override'&&event.key==='Enter'){event.preventDefault();applyDuration();}});
 $('#selection-details').addEventListener('click',event=>{
+  if(event.target.id==='apply-duration')applyDuration();
   if(event.target.id==='reset-duration'&&selected){remember();delete state.overrides[selected.id];recalculate();}
   if(event.target.id==='delete-block'&&selected){remember();state.sources[selected.channel]=serializeProgram(blocks[selected.channel].filter(b=>b.id!==selected.id));selected=null;recalculate();toast('Block removed · undo available');}
 });
@@ -305,7 +310,7 @@ $('#sync-form').onsubmit=event=>{
   $('#sync-dialog').close();recalculate();toast(kind==='barrier'?'Paired wait inserted':'Shared macro signal and wait inserted');
 };
 
-function download(content,name,type='text/plain;charset=utf-8') {const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function download(content,name,type='text/plain;charset=utf-8') {const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.hidden=true;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 $('#export-btn').onclick=()=>{applySourceDrafts();const count=[...(alignment.diagnostics||[]),...(timing.diagnostics||[])].filter(d=>(d.level||d.severity)==='error').length;$('#export-review').textContent=`${count?`${count} unresolved issue(s). `:''}Review programs in your machine simulator before use. Workspace JSON preserves programs, configuration and time overrides.`;$('#export-dialog').showModal();};
 for(const c of ['h','v'])$(`#export-${c}`).onclick=()=>{download(state.sources[c],state.filenames[c].replace(/\.[^.]+$/,'')+'.nc');toast(`${c==='h'?'Horizontal':'Vertical'} program downloaded`);};
 $('#export-project').onclick=()=>{download(JSON.stringify(project(),null,2),'spindle-sync-workspace.json','application/json');toast('Workspace backup downloaded');};
