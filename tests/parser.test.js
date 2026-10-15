@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_WAIT_PATTERN, parseProgram, serializeProgram, moveBlock, validateWaitPattern } from '../src/parser.js';
+import { DEFAULT_WAIT_PATTERN, parseProgram, serializeProgram, moveBlock, moveRange, moveIntoBlock, validateWaitPattern } from '../src/parser.js';
 
 test('default matches the machine M3XXPXX wait form', () => {
   assert.equal(DEFAULT_WAIT_PATTERN, '\\bM(3\\d{2})\\s*P(\\d+)\\b');
@@ -173,4 +173,40 @@ test('moving uses original insertion gaps and validates indexes', () => {
   assert.deepEqual(moveBlock(blocks, 1, 1), blocks);
   assert.throws(() => moveBlock(blocks, -1, 0), RangeError);
   assert.throws(() => moveBlock(blocks, 0, 4), RangeError);
+});
+
+test('waits inside a toolpath keep every piece in that toolpath and label the B index', () => {
+  const source = '%\nO1\n(FINISH SIDES)\nG1 X60 F450\nG0 Z50\nM303P12\nG0 B180.\nM304P12\nG1 X0\nN40\n(NEXT)\nG1 X1\nN50\nM30\n%\n';
+  const { blocks } = parseProgram(source);
+  const parts = blocks.filter((block) => block.toolpath?.n === 'N40');
+  assert.deepEqual(parts.map((block) => [block.kind, block.toolpath.part, block.toolpath.parts]), [
+    ['code', 1, 5], ['wait', 2, 5], ['code', 3, 5], ['wait', 4, 5], ['toolpath', 5, 5],
+  ]);
+  assert.equal(parts[0].title, 'FINISH SIDES');
+  assert.equal(parts[2].title, 'B index → B180. · N40');
+  assert.equal(parts[4].title, 'FINISH SIDES · N40');
+  assert.equal(blocks.find((block) => block.terminalN === 'N50').toolpath.parts, 1);
+  assert.ok(!blocks.find((block) => block.title === 'Program end').toolpath);
+  assert.equal(serializeProgram(blocks), source);
+});
+
+test('moveRange moves a whole toolpath, keeps text exact, and refuses to move inside itself', () => {
+  const source = '(A)\nG1 X1\nM301P12\nG1 X2\nN10\n(B)\nG1 Y1\nN20\n';
+  const { blocks } = parseProgram(source);
+  const moved = moveRange(blocks, 0, 3, blocks.length);
+  assert.equal(serializeProgram(moved), '(B)\nG1 Y1\nN20\n(A)\nG1 X1\nM301P12\nG1 X2\nN10\n');
+  assert.equal(serializeProgram(moveRange(blocks, 3, 1, 0)), '(B)\nG1 Y1\nN20\n(A)\nG1 X1\nM301P12\nG1 X2\nN10\n');
+  assert.throws(() => moveRange(blocks, 0, 3, 2), RangeError);
+});
+
+test('moveIntoBlock drops a wait between two lines of a toolpath and regroups it there', () => {
+  const source = 'M301P12\n(A)\nG1 X1\nG1 X2\nN10\n';
+  const { blocks } = parseProgram(source);
+  const text = moveIntoBlock(blocks, 0, 1, 2);
+  assert.equal(text, '(A)\nG1 X1\nM301P12\nG1 X2\nN10\n');
+  const parts = parseProgram(text).blocks;
+  assert.deepEqual(parts.map((block) => [block.kind, block.toolpath.part]), [['code', 1], ['wait', 2], ['toolpath', 3]]);
+  assert.throws(() => moveIntoBlock(blocks, 0, 1, 0), RangeError);
+  assert.throws(() => moveIntoBlock(blocks, 0, 1, 4), RangeError);
+  assert.equal(moveIntoBlock(parseProgram('(A)\r\nG1 X1\r\nN10\r\nM301P12').blocks, 1, 0, 1), '(A)\r\nM301P12\r\nG1 X1\r\nN10\r\n');
 });

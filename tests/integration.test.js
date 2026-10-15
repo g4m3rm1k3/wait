@@ -19,8 +19,8 @@ test('demo parser, alignment and timing contracts agree without altering NC sour
   const before = JSON.stringify(pair);
   const alignment = alignChannels(pair.h, pair.v);
   const timing = estimateCycle(pair.h, pair.v);
-  assert.equal(alignment.matchedCount, 4);
-  assert.equal(alignment.links.filter((link) => link.kind === 'barrier').length, 2);
+  assert.equal(alignment.matchedCount, 6);
+  assert.equal(alignment.links.filter((link) => link.kind === 'barrier').length, 4);
   assert.equal(alignment.links.filter((link) => link.kind === 'macro').length, 2);
   assert.ok(!alignment.diagnostics.some((item) => item.level === 'error'));
   for (const channel of ['h', 'v']) {

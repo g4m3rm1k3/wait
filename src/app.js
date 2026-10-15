@@ -1,4 +1,4 @@
-import { DEFAULT_WAIT_PATTERN, parseProgram, serializeProgram, moveBlock, validateWaitPattern } from './parser.js';
+import { DEFAULT_WAIT_PATTERN, parseProgram, serializeProgram, moveBlock, moveRange, moveIntoBlock, validateWaitPattern } from './parser.js';
 import { alignChannels } from './alignment.js';
 import { estimateCycle } from './timing.js';
 import { DEMO } from './demo.js';
@@ -95,8 +95,10 @@ function blockHtml(block,channel) {
   const names={'wait':'PAIRED WAIT','macro-wait':'MACRO WAIT','signal':'SIGNAL','toolpath':'TOOLPATH','code':'CODE'};
   const isSelected=selected?.id===block.id;
   const isPinned=pinned(block),limits=channelBounds(channel);
-  return `<article class="block ${block.kind} channel-${channel}${isPinned?' program-marker':''}${isSelected?' selected':''}" data-id="${escape(block.id)}" data-channel="${channel}" tabindex="0" aria-label="${channel==='h'?'Horizontal':'Vertical'} block ${index+1}: ${escape(block.title)}">
-    <div class="block-head">${isPinned?'<span class="pin-marker" title="Program boundary">◇</span>':`<button class="drag-handle" draggable="true" title="Drag to move within this channel" aria-label="Drag ${escape(block.title)}">⠿</button>`}<span class="block-title">${escape(block.title)}</span>${block.flags?.rotation?'<span class="block-flag">B</span>':''}${block.flags?.toolChange?'<span class="block-flag">TC</span>':''}<span class="block-kind">${isPinned?'PINNED':names[block.kind]||'CODE'}</span>${isPinned?'':`<div class="block-moves"><button data-move="up" aria-label="Move block up" title="Move up · Alt+↑" ${index<=limits.start?'disabled':''}>↑</button><button data-move="down" aria-label="Move block down" title="Move down · Alt+↓" ${index>=limits.end-1?'disabled':''}>↓</button></div>`}<span class="block-time" title="Estimated block duration${state.overrides[block.id]!==undefined?' · manual override':''}">${state.overrides[block.id]!==undefined?'~ ':''}${time(blockDuration(block.id),true)}</span></div>
+  const tp=block.toolpath,multi=tp&&tp.parts>1,group=multi?`${channel}:${groupRange(channel,block).start}`:'';
+  const groupHandle=multi&&!isPinned?`<button class="drag-handle group-handle" draggable="true" title="Drag the whole toolpath ${escape(tp.n)} · all ${tp.parts} parts including its waits · Alt+Shift+↑/↓" aria-label="Drag whole toolpath ${escape(tp.label)}">⧉</button>`:'';
+  return `<article class="block ${block.kind} channel-${channel}${isPinned?' program-marker':''}${isSelected?' selected':''}${multi?' in-group':''}" data-id="${escape(block.id)}" data-channel="${channel}"${multi?` data-group="${group}"`:''} tabindex="0" aria-label="${channel==='h'?'Horizontal':'Vertical'} block ${index+1}: ${escape(block.title)}">
+    <div class="block-head">${isPinned?'<span class="pin-marker" title="Program boundary">◇</span>':`<button class="drag-handle" draggable="true" title="Drag to move within this channel" aria-label="Drag ${escape(block.title)}">⠿</button>`}${groupHandle}<span class="block-title">${escape(block.title)}</span>${multi?`<span class="group-chip" title="Part ${tp.part} of ${tp.parts} of ${escape(tp.label)}">${escape(tp.n)} · ${tp.part}/${tp.parts}</span>`:''}${block.flags?.rotation?'<span class="block-flag">B</span>':''}${block.flags?.toolChange?'<span class="block-flag">TC</span>':''}<span class="block-kind">${isPinned?'PINNED':names[block.kind]||'CODE'}</span>${isPinned?'':`<div class="block-moves"><button data-move="up" aria-label="Move block up" title="Move up · Alt+↑" ${index<=limits.start?'disabled':''}>↑</button><button data-move="down" aria-label="Move block down" title="Move down · Alt+↓" ${index>=limits.end-1?'disabled':''}>↓</button></div>`}<span class="block-time" title="Estimated block duration${state.overrides[block.id]!==undefined?' · manual override':''}">${state.overrides[block.id]!==undefined?'~ ':''}${time(blockDuration(block.id),true)}</span></div>
     <div class="code-wrap"><pre class="line-numbers" aria-hidden="true">${Array.from({length:lines},(_,i)=>String(block.startLine+i).padStart(2,' ')).join('\n')}</pre><div class="code-input-wrap"><pre class="highlight" aria-hidden="true">${highlight(text)}\n</pre><textarea class="code-input" rows="${lines}" spellcheck="false" wrap="off" aria-label="${channel==='h'?'Horizontal':'Vertical'} code block ${index+1}" data-original="${escape(text)}">${escape(text)}</textarea></div></div>
   </article>`;
 }
@@ -144,8 +146,29 @@ function renderInsights() {
 function select(channel,id) {
   selected={channel,id};
   $$('.block.selected').forEach(el=>el.classList.remove('selected'));
-  $$('.block').find(el=>el.dataset.id===id)?.classList.add('selected');
+  const el=$$('.block').find(el=>el.dataset.id===id);el?.classList.add('selected');
+  $$('.block.group-active').forEach(el=>el.classList.remove('group-active'));
+  if(el?.dataset.group)$$('.block').filter(b=>b.dataset.group===el.dataset.group).forEach(b=>b.classList.add('group-active'));
   renderSelection();
+}
+/** Index range of the toolpath a block belongs to; a lone block when it has none. */
+function groupRange(channel,block){
+  const start=blocks[channel].indexOf(block);
+  return block.toolpath?{start:start-(block.toolpath.part-1),count:block.toolpath.parts}:{start,count:1};
+}
+function moveGroup(channel,block,to){
+  const {start,count}=groupRange(channel,block);
+  const limits=channelBounds(channel);to=Math.min(limits.end,Math.max(limits.start,to));
+  if(to>=start&&to<=start+count)return;
+  remember();const updated=moveRange(blocks[channel],start,count,to);
+  state.sources[channel]=serializeProgram(updated);blocks[channel]=updated;
+  recalculate();toast(`Toolpath ${block.toolpath?.n||''} moved with all ${count} parts`);
+}
+/** Insertion gap before (dir<0) or after (dir>0) the neighbouring whole toolpath. */
+function neighbourGap(channel,block,dir){
+  const {start,count}=groupRange(channel,block),list=blocks[channel];
+  const neighbour=list[dir<0?start-1:start+count];if(!neighbour)return dir<0?start:start+count;
+  const r=groupRange(channel,neighbour);return dir<0?r.start:r.start+r.count;
 }
 function renderSelection() {
   const block=selected&&blocks[selected.channel].find(b=>b.id===selected.id);
@@ -210,19 +233,41 @@ $('#aligned-board').addEventListener('scroll',event=>{
 },true);
 $('#aligned-board').addEventListener('dragstart',event=>{
   if(!event.target.closest('.drag-handle')){event.preventDefault();return;}
-  const article=event.target.closest('.block');drag={channel:article.dataset.channel,id:article.dataset.id};
+  const article=event.target.closest('.block');drag={channel:article.dataset.channel,id:article.dataset.id,group:!!event.target.closest('.group-handle')};
   event.dataTransfer.setData('text/plain',JSON.stringify(drag));event.dataTransfer.effectAllowed='move';article.classList.add('dragging');
 });
-function clearDrop(){ $$('.drop-before,.drop-after,.end-drop.over').forEach(el=>el.classList.remove('drop-before','drop-after','over')); }
+const LINE_PX=19;
+function clearDrop(){ $$('.drop-before,.drop-after,.drop-inside,.end-drop.over').forEach(el=>{el.classList.remove('drop-before','drop-after','drop-inside','over');delete el.dataset.dropLine;}); }
+/** Line gap inside a code block under the pointer, when a single sync block can be dropped there. */
+function insideLine(event,target){
+  if(drag.group||target.classList.contains('end-drop')||target.dataset.id===drag.id)return 0;
+  const list=blocks[drag.channel],dragged=list.find(b=>b.id===drag.id),into=list.find(b=>b.id===target.dataset.id);
+  if(!dragged?.sync||!into||into.sync||pinned(into))return 0;
+  const wrap=$('.code-input-wrap',target),ta=$('.code-input',target);if(!wrap||!ta)return 0;
+  const top=wrap.getBoundingClientRect().top,line=Math.round((event.clientY-top+ta.scrollTop)/LINE_PX);
+  return event.clientY>=top&&line>0&&line<ta.value.split('\n').length?line:0;
+}
+function moveInto(channel,from,targetId,line){
+  remember();state.sources[channel]=moveIntoBlock(blocks[channel],from,blocks[channel].findIndex(b=>b.id===targetId),line);
+  recalculate();toast('Wait placed inside the code · alignment updated');
+}
 $('#aligned-board').addEventListener('dragover',event=>{
   if(!drag)return;const target=event.target.closest('.block,.end-drop');if(!target||target.dataset.channel!==drag.channel)return;
   event.preventDefault();event.dataTransfer.dropEffect='move';clearDrop();
-  if(target.classList.contains('end-drop'))target.classList.add('over');
+  const line=insideLine(event,target);
+  if(line){target.classList.add('drop-inside');target.dataset.dropLine=line;$('.code-input-wrap',target).style.setProperty('--drop-line',`${line*LINE_PX-$('.code-input',target).scrollTop}px`);}
+  else if(target.classList.contains('end-drop'))target.classList.add('over');
   else target.classList.add(event.clientY<target.getBoundingClientRect().top+target.clientHeight/2?'drop-before':'drop-after');
 });
 $('#aligned-board').addEventListener('drop',event=>{
   if(!drag)return;event.preventDefault();const target=event.target.closest('.block,.end-drop');
-  if(target&&target.dataset.channel===drag.channel){const from=blocks[drag.channel].findIndex(b=>b.id===drag.id);const to=target.classList.contains('end-drop')?blocks[drag.channel].length:blocks[drag.channel].findIndex(b=>b.id===target.dataset.id)+(target.classList.contains('drop-after')?1:0);move(drag.channel,from,to);}
+  if(target&&target.dataset.channel===drag.channel&&target.dataset.dropLine)moveInto(drag.channel,blocks[drag.channel].findIndex(b=>b.id===drag.id),target.dataset.id,Number(target.dataset.dropLine));
+  else if(target&&target.dataset.channel===drag.channel&&drag.group){
+    const list=blocks[drag.channel],block=list.find(b=>b.id===drag.id);let to=list.length;
+    if(!target.classList.contains('end-drop')){const r=groupRange(drag.channel,list.find(b=>b.id===target.dataset.id));to=target.classList.contains('drop-after')?r.start+r.count:r.start;}
+    moveGroup(drag.channel,block,to);
+  }
+  else if(target&&target.dataset.channel===drag.channel){const from=blocks[drag.channel].findIndex(b=>b.id===drag.id);const to=target.classList.contains('end-drop')?blocks[drag.channel].length:blocks[drag.channel].findIndex(b=>b.id===target.dataset.id)+(target.classList.contains('drop-after')?1:0);move(drag.channel,from,to);}
   else toast('Move blocks within their original channel',true);drag=null;clearDrop();
 });
 $('#aligned-board').addEventListener('dragend',()=>{drag=null;pointerHeld=false;clearDrop();$$('.dragging').forEach(el=>el.classList.remove('dragging'));flushEditRender();});
@@ -268,6 +313,7 @@ document.addEventListener('keydown',event=>{
   if(event.key==='Escape'&&!inText&&!document.querySelector('dialog[open]')&&document.body.classList.contains('focus-mode'))setFocus(false);
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'&&!inText){event.preventDefault();event.shiftKey?redo():undo();}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();document.activeElement.blur();applySourceDrafts();save();toast('Workspace saved in this browser');}
+  if(event.altKey&&event.shiftKey&&['ArrowUp','ArrowDown'].includes(event.key)&&selected){event.preventDefault();if(event.target.matches('.code-input'))commitBlock(event.target);if(!selected)return;const block=blocks[selected.channel].find(b=>b.id===selected.id);if(block&&!pinned(block))moveGroup(selected.channel,block,neighbourGap(selected.channel,block,event.key==='ArrowUp'?-1:1));return;}
   if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)&&selected){event.preventDefault();if(event.target.matches('.code-input'))commitBlock(event.target);if(!selected)return;const index=blocks[selected.channel].findIndex(b=>b.id===selected.id);const to=event.key==='ArrowUp'?index-1:index+2;if(to>=0&&to<=blocks[selected.channel].length)move(selected.channel,index,to);}
 });
 

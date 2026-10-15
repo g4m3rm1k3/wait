@@ -165,6 +165,8 @@ export function parseProgram(source, options = {}, channel = 'h') {
       flags: code ? analyzeFlags(code) : EMPTY_FLAGS(),
     };
     if (terminalN) block.terminalN = terminalN;
+    const comment = segment.map((line) => line.content.match(/\(([^()]*)\)/)?.[1]?.trim()).find(Boolean);
+    if (comment) block.comment = comment;
     blocks.push(block);
   }
   function flush(kind = 'code', terminalN, title) {
@@ -255,18 +257,53 @@ export function parseProgram(source, options = {}, channel = 'h') {
     if (terminal) flush('toolpath', `N${terminal[1]}`);
   }
   flush();
+  assignToolpaths(blocks);
   return { blocks, diagnostics, eol, trailingNewline };
+}
+
+const BOUNDARY_TITLES = new Set(['Program header', 'Program end']);
+const KEEP_TITLES = new Set(['Comments / spacing', 'Macro loop (kept together)', 'Unrecognized macro loop (kept together)', 'Multiple waits on one line (kept together)']);
+
+/**
+ * A toolpath is every block up to and including its ending N line, so waits and
+ * B indexes placed mid-path stay part of it. Each member gets
+ * `toolpath = { n, label, part, parts }`; members are always contiguous.
+ */
+function assignToolpaths(blocks) {
+  let members = [];
+  for (const block of blocks) {
+    if (BOUNDARY_TITLES.has(block.title)) { members = []; continue; }
+    members.push(block);
+    if (block.kind !== 'toolpath') continue;
+    const comment = members.find((member) => !member.sync && member.comment)?.comment;
+    const label = comment ? `${comment} · ${block.terminalN}` : `Toolpath ${block.terminalN}`;
+    members.forEach((member, index) => {
+      member.toolpath = { n: block.terminalN, label, part: index + 1, parts: members.length };
+      if (members.length < 2 || member.sync || KEEP_TITLES.has(member.title)) return;
+      const code = member.text.replace(/\([^)]*\)|;[^\r\n]*/g, '');
+      const bTarget = [...code.matchAll(/\bB\s*([+-]?[\d.]+)/gi)].at(-1)?.[1];
+      const cuts = /\bG\s*0*[123](?![\d.])/i.test(code) || /\bM\s*0*6(?![\d.])/i.test(code);
+      if (member.flags.rotation && !cuts && !member.comment) member.title = `B index${bTarget ? ` → B${bTarget}` : ''} · ${block.terminalN}`;
+      else if (!member.comment || member === block) member.title = label;
+    });
+    members = [];
+  }
 }
 
 export function serializeProgram(blocks) { return blocks.map((block) => block.text).join(''); }
 
 /** `to` is an insertion gap in the original array, from 0 through length. */
-export function moveBlock(blocks, from, to) {
-  if (!Number.isInteger(from) || from < 0 || from >= blocks.length) throw new RangeError('Source block index is out of range.');
+export function moveBlock(blocks, from, to) { return moveRange(blocks, from, 1, to); }
+
+/** Move `count` contiguous blocks starting at `from` to insertion gap `to`. */
+export function moveRange(blocks, from, count, to) {
+  if (!Number.isInteger(count) || count < 1) throw new RangeError('Move at least one block.');
+  if (!Number.isInteger(from) || from < 0 || from + count > blocks.length) throw new RangeError('Source block index is out of range.');
   if (!Number.isInteger(to) || to < 0 || to > blocks.length) throw new RangeError('Insertion index is out of range.');
+  if (to > from && to < from + count) throw new RangeError('A range cannot be moved inside itself.');
   const result = [...blocks];
-  const [block] = result.splice(from, 1);
-  result.splice(to > from ? to - 1 : to, 0, block);
+  const moved = result.splice(from, count);
+  result.splice(to > from ? to - count : to, 0, ...moved);
   const eol = blocks.map((entry) => entry.text.match(/\r\n|\n|\r/)?.[0]).find(Boolean) || '\n';
   for (let index = 0; index < result.length - 1; index += 1) {
     if (result[index].text && !/[\r\n]$/.test(result[index].text) && !/^[\r\n]/.test(result[index + 1].text)) {
@@ -274,4 +311,18 @@ export function moveBlock(blocks, from, to) {
     }
   }
   return result;
+}
+
+/**
+ * Remove blocks[from] and insert its text before line `line` (1-based gap, strictly
+ * inside) of blocks[target]. Returns the new program text; reparse to regroup.
+ */
+export function moveIntoBlock(blocks, from, target, line) {
+  if (!blocks[from] || !blocks[target] || from === target) throw new RangeError('Choose a different block to insert into.');
+  const lines = blocks[target].text.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g).filter(Boolean);
+  if (!Number.isInteger(line) || line < 1 || line >= lines.length) throw new RangeError('Insert between two lines of the block.');
+  const eol = lines[0].match(/\r\n|\n|\r/)?.[0] || '\n';
+  const moved = /[\r\n]$/.test(blocks[from].text) ? blocks[from].text : blocks[from].text + eol;
+  const text = lines.slice(0, line).join('') + moved + lines.slice(line).join('');
+  return serializeProgram(blocks.map((block, index) => (index === target ? { ...block, text } : block)).filter((_, index) => index !== from));
 }
