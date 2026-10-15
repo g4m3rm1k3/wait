@@ -12,7 +12,7 @@
  *   - straight G0 / G1 moves only; distance / feed rate
  *   - G0 uses the rapid rate, G1 the programmed F (or the fallback cut feed)
  *   - B rotation uses the B-axis rate; a move with both XYZ and B takes the longer
- *   - M6 takes the configured tool-change time
+ *   - a T word (T5) takes the configured tool-change time; M6 is not a tool change
  *   - G20/G21 units and G90/G91 absolute/incremental are followed
  * Anything else (arcs, canned cycles, G68, macros, subprograms) becomes an
  * 'unknown' action: the user must enter a manual time for that block.
@@ -31,7 +31,7 @@ const CONTROL_FLOW = /\b(?:IF|WHILE|GOTO|DO\d*|END\d*)\b|#|\[|\]|^\//;
 /** G codes the straight-line model understands (or can safely ignore). */
 const KNOWN_G = new Set([0, 1, 2, 3, 17, 18, 19, 20, 21, 40, 43, 49, 54, 55, 56, 57, 58, 59, 61, 64, 80, 90, 91, 93, 94, 95, 96, 97, 98, 99]);
 /** M codes that take no modeled time: spindle, coolant, program end. */
-const TIMELESS_M = new Set([2, 3, 4, 5, 8, 9, 30]);
+const TIMELESS_M = new Set([2, 3, 4, 5, 6, 8, 9, 30]);
 const SUPPORTED_LETTERS = 'GMXYZBFSHTDPLQRIJK';
 
 /**
@@ -149,9 +149,10 @@ export class ChannelInterpreter {
     if (mCodes.some((code) => code === 2 || code === 30)) this.programEnded = true;
     this.updateModalState(gCodes, words);
 
+    // On this machine the T word itself changes the tool.
+    if (words.some((word) => word.letter === 'T')) ctx.time(this.settings.toolChangeSeconds, 'toolChange', 'Tool change');
     for (const code of mCodes) {
-      if (code === 6) ctx.time(this.settings.toolChangeSeconds, 'toolChange', 'Tool change');
-      else if (!TIMELESS_M.has(code)) ctx.unknown(`M${code} has no configured time or execution model.`);
+      if (!TIMELESS_M.has(code)) ctx.unknown(`M${code} has no configured time or execution model.`);
     }
 
     const unknownG = gCodes.filter((code) => !KNOWN_G.has(code));

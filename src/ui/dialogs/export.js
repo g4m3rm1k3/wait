@@ -1,7 +1,7 @@
 /**
  * Export dialog: download each NC program, or the whole workspace as JSON,
  * and restore a workspace from a JSON backup.
- * NC downloads contain only the program text; alignment spacers are display only.
+ * NC downloads keep the uploaded file name and contain only the program text; alignment spacers are display only.
  */
 import { $, CHANNELS, channelName, downloadFile } from '../dom.js';
 import { validateProject } from '../workspace.js';
@@ -17,8 +17,8 @@ export function setupExportDialog(app) {
 
   for (const channel of CHANNELS) {
     $(`#export-${channel}`).onclick = () => {
-      const name = `${app.ws.state.filenames[channel].replace(/\.[^.]+$/, '')}.nc`;
-      downloadFile(app.ws.state.sources[channel], name);
+      // Same file name as the uploaded program.
+      downloadFile(app.ws.state.sources[channel], app.ws.state.filenames[channel]);
       app.toast(`${channelName(channel)} program downloaded`);
     };
   }

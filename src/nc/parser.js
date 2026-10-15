@@ -61,7 +61,8 @@ const MAX_WAIT_SCAN_LENGTH = 2048;
 export function analyzeFlags(code) {
   return {
     rotation: /B\s*[+-]?(?:\d|\.|#|\[)/i.test(code),
-    toolChange: /M\s*0*6(?![\d.])/i.test(code),
+    // This machine changes tools on the T word itself (T5); M6 is not a tool change.
+    toolChange: /\bT\s*\d/i.test(code),
     g68: /G\s*0*68(?:\.\d+)?(?![\d.])/i.test(code),
   };
 }
@@ -92,7 +93,7 @@ export function parseProgram(source, options = {}, channel = 'h') {
 
     // --- Macro loops: WHILE ... DOn / ENDn -----------------------------------
     if (LOOP_START.test(code)) {
-      index = readLoop(lines, index, builder); // returns the index of the loop's last line
+      index = readLoop(lines, index, builder, waitRegex); // returns the index of the loop's last line
       continue;
     }
     if (/\bWHILE\b/i.test(code)) {
@@ -180,11 +181,12 @@ class BlockBuilder {
 }
 
 /**
- * Read a WHILE loop starting at `start`. An empty `WHILE[#var NE value] DOn / ENDn`
- * becomes a movable macro-wait; any other loop is kept together as one block.
+ * Read a WHILE loop starting at `start`. A `WHILE[#var NE value] DOn / ENDn`
+ * whose body is empty or only simple filler (a dwell such as G4P10) becomes a
+ * movable macro-wait; any other loop is kept together as one block.
  * @returns {number} index of the loop's last line
  */
-function readLoop(lines, start, builder) {
+function readLoop(lines, start, builder, waitRegex) {
   builder.flushPending();
   const opening = lines[start].code.match(LOOP_START);
   const range = findLoopEnd(lines, start);
@@ -192,9 +194,9 @@ function readLoop(lines, start, builder) {
 
   const exactWait = lines[start].code.match(MACRO_WAIT_LINE);
   const endsWithOwnEnd = new RegExp(`^\\s*END\\s*${opening[1]}\\s*$`, 'i').test(segment[segment.length - 1].code);
-  const bodyIsEmpty = segment.slice(1, -1).every((entry) => !entry.code.trim());
+  const bodyIsFiller = segment.slice(1, -1).every((entry) => isWaitFiller(entry.code, waitRegex));
 
-  if (range.closed && !range.mismatch && segment.length >= 2 && exactWait && endsWithOwnEnd && bodyIsEmpty) {
+  if (range.closed && !range.mismatch && segment.length >= 2 && exactWait && endsWithOwnEnd && bodyIsFiller) {
     builder.add(segment, 'macro-wait', { sync: macroSync(exactWait[1], exactWait[2], 'wait') });
   } else {
     builder.add(segment, 'code', { title: TITLE_LOOP_KEPT });
@@ -202,12 +204,29 @@ function readLoop(lines, start, builder) {
       ? ['unclosed-loop', 'This WHILE loop has no matching END; its remaining source was kept together.']
       : range.mismatch
         ? ['mismatched-loop', 'WHILE / END numbers do not match; this loop was kept together.']
-        : !bodyIsEmpty
-          ? ['unsupported-loop', 'This WHILE loop contains executable code. Its body and synchronization stay together.']
+        : !bodyIsFiller
+          ? ['unsupported-loop', 'This WHILE loop contains macro logic, waits or program end. Its body and synchronization stay together.']
           : ['unsupported-loop', 'Only empty WHILE [#variable NE numeric-value] DO / END loops are recognized as movable waits.'];
     builder.note(code, reason, lines[start].line);
   }
   return range.end;
+}
+
+/**
+ * Can this line sit inside a wait loop without changing what the loop means?
+ * Dwells (G4P10) and other plain codes are fine; macro logic, nested loops,
+ * wait codes and program end are not, because they would make the loop more
+ * than "wait here until the other channel is ready".
+ */
+function isWaitFiller(code, waitRegex) {
+  if (!code.trim()) return true;
+  if (/#|\[|\]|\b(?:IF|WHILE|GOTO|DO\s*\d*|END\s*\d*)\b/i.test(code)) return false;
+  if (/\bM\s*0*(?:2|30|98|99)\b/i.test(code)) return false;
+  if (waitRegex) {
+    waitRegex.lastIndex = 0;
+    if (waitRegex.test(code)) return false;
+  }
+  return true;
 }
 
 /**

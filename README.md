@@ -18,7 +18,7 @@ Open the hosted copy at <https://g4m3rm1k3.github.io/wait/>, or serve this folde
 
 ## Time and utilization
 
-Settings provide a fallback cutting feed, rapid feed (mm/min), B-axis rate (degrees/min), and seconds per M6/M06. Programmed F values can be used or replaced with the fallback feed. G20/G21 and G90/G91 are modeled for straight XYZ moves. XYZ and B motion on the same line use the longer estimated travel time. Initial X/Y/Z/B are assumed zero and called out in the notes.
+Settings provide a fallback cutting feed, rapid feed (mm/min), B-axis rate (degrees/min), and seconds per tool change (any T word, e.g. `T5`; M6 is not treated as a tool change). Programmed F values can be used or replaced with the fallback feed. G20/G21 and G90/G91 are modeled for straight XYZ moves. XYZ and B motion on the same line use the longer estimated travel time. Initial X/Y/Z/B are assumed zero and called out in the notes.
 
 Each channel's bar shows feed motion (cut estimate), rapid/B travel (air estimate), tool changes, and synchronization waiting. Waiting includes idle after a channel has finished. Percentages use commanded feed-motion time divided by the shared estimated cycle time. **At least one cutting** measures the union of both channels' feed-motion intervals, so overlapping cuts are counted once; its complement shows time with neither channel cutting.
 

@@ -9,7 +9,7 @@ const wait = (id, variable, value) => ({ id, text: '', kind: 'macro-wait', sync:
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} should equal ${expected}`);
 
 test('estimates modal linear motion, rapid travel, and each tool change in seconds', () => {
-  const result = estimateCycle([block('h-path', '(M6 G1 X900)\nG21 G90\nM06\nG0 X100\nG1 X200 F600\nX300 ; M6 X10000\nT2 M6\nN10')], [], { rapidFeed: 10000, toolChangeSeconds: 8 });
+  const result = estimateCycle([block('h-path', '(T9 G1 X900)\nG21 G90\nT1\nM06\nG0 X100\nG1 X200 F600\nX300 ; T9 X10000\nT2 M6\nN10')], [], { rapidFeed: 10000, toolChangeSeconds: 8 });
   assert.equal(result.complete, true);
   near(result.duration, 36.6);
   near(result.channels.h.cut, 20);

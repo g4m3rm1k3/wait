@@ -56,9 +56,13 @@ test('comments never create waits, N boundaries, signals or motion flags', () =>
   assert.equal(serializeProgram(parsed.blocks), source);
 });
 
-test('B axis motion, M6 and G68 are flagged independent of letter case and spacing', () => {
-  const block = parseProgram('g0b[#500]\nm 06\ng68 x0 y0 r90\nN10').blocks[0];
+test('B axis motion, T tool changes and G68 are flagged independent of letter case and spacing', () => {
+  const block = parseProgram('g0b[#500]\nt 05\ng68 x0 y0 r90\nN10').blocks[0];
   assert.deepEqual(block.flags, { rotation: true, toolChange: true, g68: true });
+});
+
+test('M6 alone is not a tool change on this machine', () => {
+  assert.equal(parseProgram('M6\nG1X1\nN10').blocks[0].flags.toolChange, false);
 });
 
 test('empty macro spin waits and numeric signals share normalized sync identities', () => {
@@ -72,6 +76,23 @@ test('empty macro spin waits and numeric signals share normalized sync identitie
   assert.equal(parsed.blocks[1].endLine, 4);
   assert.ok(parsed.blocks[1].id.startsWith('v-'));
   assert.equal(serializeProgram(parsed.blocks), source);
+});
+
+test('wait loops with a dwell or other plain code inside are still movable macro waits', () => {
+  const source = 'WHILE[#501NE20]DO1\nG4P10\nM5 (SPINDLE OFF)\nEND1\nG0X0\nN10\n';
+  const parsed = parseProgram(source);
+  assert.deepEqual(parsed.blocks.map((block) => block.kind), ['macro-wait', 'toolpath']);
+  assert.equal(parsed.blocks[0].sync.key, '#501=20');
+  assert.equal(parsed.diagnostics.length, 0);
+  assert.equal(serializeProgram(parsed.blocks), source);
+});
+
+test('wait loops containing macro logic, wait codes or program end stay atomic', () => {
+  for (const body of ['#100=1', 'M301P12', 'IF[#1EQ1]GOTO5', 'M30']) {
+    const parsed = parseProgram(`WHILE[#501NE20]DO1\n${body}\nEND1\n`);
+    assert.equal(parsed.blocks[0].kind, 'code', body);
+    assert.equal(parsed.diagnostics[0].code, 'unsupported-loop');
+  }
 });
 
 test('negative and decimal macro constants normalize without floating-point loss', () => {
