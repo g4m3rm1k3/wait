@@ -4,7 +4,7 @@ A local, browser based NC editor for two linked channels of a four-channel machi
 
 ## Open
 
-Double-click **Start Spindle Sync.cmd** on Windows, or run `npm start` in this directory and open <http://127.0.0.1:4173>. Node.js 20 or newer is required. There are no packages to install, remote libraries, external fonts, or program uploads. The server binds to loopback only.
+Open the hosted copy at <https://g4m3rm1k3.github.io/wait/>, or serve this folder with any static server (for example VS Code Live Server) and open `index.html`. Opening the file directly with `file://` does not work because browsers block ES modules there. With Node.js 20+, you can also double-click **Start Spindle Sync.cmd** on Windows or run `npm start` and open <http://127.0.0.1:4173>. There are no packages to install, remote libraries, external fonts, or program uploads. The server binds to loopback only.
 
 ## Arrange programs
 

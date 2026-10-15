@@ -125,8 +125,11 @@ function renderInsights() {
   $('#cycle-note').textContent=stalled?'Schedule stalled · totals stop at the blockage':timing.complete?'Estimated schedule · selected pair only':'Partial estimate · review unresolved timing';
   $('#timeline-scale').textContent=`0 — ${time(timing.duration)}`;
   const scale=Math.max(1,timing.duration);
-  $('#timeline').innerHTML=['h','v'].map(c=>`<div class="timeline-lane"><span>${c.toUpperCase()}</span><div class="timeline-bar" aria-label="${c==='h'?'Horizontal':'Vertical'} estimated timeline">${(timing.segments[c]||[]).map(s=>`<span class="timeline-segment ${escape(s.type)}" style="left:${100*s.start/scale}%;width:${100*(s.end-s.start)/scale}%" title="${escape(s.label||s.type)} · ${time(s.end-s.start,true)} (${time(s.start)}–${time(s.end)})"></span>`).join('')}</div></div>`).join('');
+  $('#timeline').innerHTML=$('#focus-timeline').innerHTML=['h','v'].map(c=>`<div class="timeline-lane"><span>${c.toUpperCase()}</span><div class="timeline-bar" aria-label="${c==='h'?'Horizontal':'Vertical'} estimated timeline">${(timing.segments[c]||[]).map(s=>`<span class="timeline-segment ${escape(s.type)}" style="left:${100*s.start/scale}%;width:${100*(s.end-s.start)/scale}%" title="${escape(s.label||s.type)} · ${time(s.end-s.start,true)} (${time(s.start)}–${time(s.end)})"></span>`).join('')}</div></div>`).join('');
   const coverage=timing.coverage;
+  // Focus-mode readout: the channel that waits least sets the cycle, so show both waits side by side.
+  const waits={h:timing.channels.h.wait||0,v:timing.channels.v.wait||0},bottleneck=waits.h<=waits.v?'h':'v';
+  $('#focus-stats').innerHTML=`<span class="${timing.complete?'':'partial'}">Cycle <b>~${time(timing.duration)}${timing.complete?'':'*'}</b></span>${['h','v'].map(c=>`<span class="${c===bottleneck?'bottleneck':''}" title="${c===bottleneck?'Waits least · sets the cycle':''}">${c.toUpperCase()} wait <b>${time(waits[c])}</b></span>`).join('')}${coverage?`<span>Cutting <b>${Math.round(100*coverage.utilization)}%</b></span>`:''}`;
   $('#cut-coverage').innerHTML=coverage?`<div class="section-label">AT LEAST ONE CUTTING <strong>${Math.round(100*coverage.utilization)}%${timing.complete?'':'*'}</strong></div><div class="coverage-bar"><span style="width:${100*coverage.utilization}%"></span></div><div class="coverage-detail"><span>Neither channel cutting</span><strong>${time(coverage.nonCutting)}</strong></div>${timing.complete?'':`<p class="partial-note">* ${stalled?'Until the blockage; remaining operations excluded.':'Partial modeled time; unresolved operations excluded.'}</p>`}`:'';
   $('#utilization').innerHTML=['h','v'].map(c=>{
     const stats=timing.channels[c],util=Math.min(100,Math.max(0,(stats.utilization||0)*100));
@@ -248,10 +251,21 @@ $('#diagnostics-toggle').onclick=()=>{const hidden=!$('#diagnostics').hidden;$('
 $('#aligned-tab').onclick=()=>setView('aligned');$('#source-tab').onclick=()=>setView('source');
 $('#undo-btn').onclick=undo;$('#redo-btn').onclick=redo;
 $('#collapse-btn').onclick=()=>{state.compact=!state.compact;render();save();};
+function setFocus(on){
+  document.body.classList.toggle('focus-mode',on);
+  $('#focus-btn').textContent=on?'⤡ Exit focus':'⛶ Focus';
+  if(on&&!document.fullscreenElement)document.documentElement.requestFullscreen?.().catch(()=>{});
+  if(!on&&document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});
+}
+$('#focus-btn').onclick=()=>setFocus(!document.body.classList.contains('focus-mode'));
+// Leaving browser full screen (Esc / F11) also leaves focus mode.
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&document.body.classList.contains('focus-mode'))setFocus(false);});
 $('#dismiss-demo').onclick=()=>{$('#demo-banner').hidden=true;};
 $('#demo-btn').onclick=()=>{remember();state.sources={...DEMO};state.filenames={h:'horizontal.nc',v:'vertical.nc'};state.overrides={};state.example=true;blocks={h:[],v:[]};selected=null;sourceDrafts={};recalculate();toast('Example programs loaded');};
 document.addEventListener('keydown',event=>{
   const inText=/^(TEXTAREA|INPUT)$/.test(event.target.tagName);
+  if((event.ctrlKey||event.metaKey)&&event.shiftKey&&event.key.toLowerCase()==='f'){event.preventDefault();setFocus(!document.body.classList.contains('focus-mode'));}
+  if(event.key==='Escape'&&!inText&&!document.querySelector('dialog[open]')&&document.body.classList.contains('focus-mode'))setFocus(false);
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'&&!inText){event.preventDefault();event.shiftKey?redo():undo();}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();document.activeElement.blur();applySourceDrafts();save();toast('Workspace saved in this browser');}
   if(event.altKey&&['ArrowUp','ArrowDown'].includes(event.key)&&selected){event.preventDefault();if(event.target.matches('.code-input'))commitBlock(event.target);if(!selected)return;const index=blocks[selected.channel].findIndex(b=>b.id===selected.id);const to=event.key==='ArrowUp'?index-1:index+2;if(to>=0&&to<=blocks[selected.channel].length)move(selected.channel,index,to);}
