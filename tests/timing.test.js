@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateCycle } from '../src/timing.js';
+import { estimateCycle } from '../src/timing/estimate.js';
 
 const block = (id, text, flags = {}) => ({ id, text, kind: 'toolpath', flags });
 const barrier = (id, key = '301P12') => ({ id, text: '', kind: 'wait', sync: { kind: 'barrier', role: 'barrier', key } });

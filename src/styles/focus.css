@@ -1,0 +1,73 @@
+/*
+ * Focus mode (body.focus-mode): the editor fills the screen; see ui/focus-mode.js.
+ */
+.focus-stats,
+.focus-timeline {
+  display: none;
+}
+body.focus-mode {
+  overflow: hidden;
+}
+body.focus-mode .app-header,
+body.focus-mode .inspector,
+body.focus-mode .statusbar,
+body.focus-mode .demo-banner {
+  display: none;
+}
+body.focus-mode .workspace {
+  margin: 0;
+  display: block;
+  height: 100vh;
+}
+body.focus-mode .editor-panel {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+}
+body.focus-mode .editor-scroll {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+body.focus-mode #focus-btn {
+  color: var(--mint);
+  background: #203b36;
+}
+body.focus-mode .focus-stats {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font: 11px var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.focus-stats b {
+  color: var(--text);
+  font-weight: 600;
+}
+.focus-stats .bottleneck b {
+  color: var(--amber);
+}
+.focus-stats .partial {
+  color: var(--wait);
+}
+body.focus-mode .focus-timeline {
+  display: grid;
+  gap: 3px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #141a21;
+}
+.focus-timeline .timeline-lane {
+  margin-top: 0;
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: center;
+  font: 9px var(--mono);
+  color: var(--muted);
+}

@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "Local dual-channel NC alignment and cycle planning editor",
-  "scripts": { "start": "node server.js", "test": "node --test tests/*.test.js", "check": "node --check src/app.js && node --check src/parser.js && node --check src/alignment.js && node --check src/timing.js" },
-  "engines": { "node": ">=20" }
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/main.js && for f in src/*/*.js src/*/*/*.js; do node --check $f || exit 1; done"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

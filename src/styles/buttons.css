@@ -1,0 +1,58 @@
+/*
+ * Buttons: .button (default), .primary (green), .quiet (text only), .small, and round .icon-button.
+ */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: #222b36;
+  border: 1px solid #394451;
+  border-radius: 6px;
+  padding: 9px 13px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.button:hover {
+  background: #2c3642;
+  border-color: #536174;
+}
+.button.primary {
+  background: var(--mint);
+  border-color: var(--mint);
+  color: #122d26;
+  font-weight: 650;
+}
+.button.primary:hover {
+  background: #93e8cd;
+}
+.button.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: #aebaca;
+}
+.button.quiet:hover {
+  background: #242d39;
+  color: var(--text);
+}
+.button.small {
+  font-size: 11px;
+  padding: 6px 10px;
+}
+.icon-button {
+  background: transparent;
+  border: 1px solid transparent;
+  min-width: 27px;
+  height: 28px;
+  border-radius: 5px;
+  color: #9daaba;
+  font-size: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-button:hover {
+  color: var(--text);
+  background: #2a3440;
+}

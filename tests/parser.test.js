@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_WAIT_PATTERN, parseProgram, serializeProgram, moveBlock, moveRange, moveIntoBlock, validateWaitPattern } from '../src/parser.js';
+import { DEFAULT_WAIT_PATTERN, validateWaitPattern } from '../src/nc/wait-pattern.js';
+import { parseProgram } from '../src/nc/parser.js';
+import { serializeProgram, moveBlock, moveRange, moveIntoBlock } from '../src/nc/edit.js';
 
 test('default matches the machine M3XXPXX wait form', () => {
   assert.equal(DEFAULT_WAIT_PATTERN, '\\bM(3\\d{2})\\s*P(\\d+)\\b');

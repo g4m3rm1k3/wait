@@ -36,4 +36,18 @@ The current workspace autosaves to this browser and origin. Export a **workspace
 
 ## Development
 
-`npm test` runs the parser, alignment, scheduler, and integration tests. `npm run check` checks JavaScript syntax. Source is in `src/`; the app is dependency-free ES modules served by `server.js`.
+There is no build step: the browser loads the files in `src/` directly, so any static server (Live Server, GitHub Pages) works.
+
+```
+index.html          page structure
+src/main.js         entry point; wires the UI modules together
+src/nc/             reading NC text: lines, numbers, wait pattern, parser, toolpath grouping, edits
+src/sync/           lining channels up at waits; crossed waits, macro races, deadlock detection
+src/timing/         cycle estimate: G-code -> timed actions -> two-channel schedule -> totals
+src/ui/             on-screen behaviour; app.js is the controller, workspace.js holds the data
+src/ui/dialogs/     Settings, Import, Add sync, Export
+src/styles/         CSS, one file per screen area
+tests/              node --test suites for nc, sync and timing
+```
+
+`npm test` runs the tests (Node.js 20+). `npm run check` checks JavaScript syntax.

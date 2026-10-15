@@ -1,0 +1,94 @@
+/*
+ * Colours, fonts and resets. All colours are variables on :root; change them here.
+ */
+:root {
+  color-scheme: dark;
+  --bg: #10141a;
+  --panel: #171d25;
+  --panel2: #1c232d;
+  --border: #2b3440;
+  --muted: #8995a5;
+  --text: #e3eaf3;
+  --mint: #76ddbd;
+  --violet: #b3a2ee;
+  --air: #648cbd;
+  --amber: #dfb16c;
+  --wait: #d77683;
+  --mono: Consolas, "Cascadia Code", "Courier New", monospace;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+button,
+a,
+input,
+select,
+textarea {
+  outline-offset: 4px;
+}
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--mint);
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  color: inherit;
+}
+input,
+textarea,
+select {
+  color: var(--text);
+  background: #121820;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 1px solid #6f9e91;
+  border-color: #6f9e91;
+}
+button {
+  border: 0;
+}
+p {
+  line-height: 1.55;
+}
+.muted {
+  color: var(--muted);
+}
+.mono {
+  font-family: var(--mono);
+}
+[hidden] {
+  display: none !important;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  font-weight: 600;
+  color: #8b9aaa;
+}

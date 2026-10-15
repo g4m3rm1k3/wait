@@ -1,0 +1,50 @@
+/*
+ * Page frame: header, the workspace grid (editor + inspector) and the status bar.
+ */
+/*
+ * Page layout: header on top, status bar at the bottom, and the workspace
+ * filling the window height in between. The editor and the inspector panel
+ * each scroll on their own, like an IDE.
+ */
+body {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.workspace {
+  flex: 1;
+  min-height: 0;
+  margin: 14px 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 278px;
+  gap: 18px;
+  align-items: stretch;
+}
+.statusbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #242e39;
+  padding: 12px 30px;
+  font-size: 9px;
+  color: #6e8198;
+  letter-spacing: 0.1px;
+}
+.statusbar > span:first-child {
+  display: flex;
+  align-items: center;
+  font: 8px var(--mono);
+  gap: 7px;
+}
+.statusbar i {
+  width: 4px;
+  height: 4px;
+  background: var(--mint);
+  border-radius: 50%;
+}
+.status-sep {
+  margin: 0 4px;
+  color: #465463;
+}

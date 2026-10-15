@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseProgram, serializeProgram, moveBlock } from '../src/parser.js';
-import { alignChannels } from '../src/alignment.js';
-import { estimateCycle } from '../src/timing.js';
-import { DEMO } from '../src/demo.js';
+import { parseProgram } from '../src/nc/parser.js';
+import { serializeProgram, moveBlock } from '../src/nc/edit.js';
+import { alignChannels } from '../src/sync/alignment.js';
+import { estimateCycle } from '../src/timing/estimate.js';
+import { DEMO } from '../src/nc/demo-programs.js';
 
 function parsePair(sources = DEMO, settings = {}) {
   return {

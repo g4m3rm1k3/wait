@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alignChannels } from '../src/alignment.js';
+import { alignChannels } from '../src/sync/alignment.js';
 
 const content = (id) => ({ id, kind: 'toolpath', text: id, sync: null });
 const barrier = (id, key) => ({ id, kind: 'sync', text: `M${key}`, sync: { kind: 'barrier', role: 'barrier', key } });
