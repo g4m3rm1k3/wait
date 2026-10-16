@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Sync Planner Walkthrough</title>
+<meta name="description" content="Step-by-step interactive walkthrough of the H/V sync planner: stretches, V pieces, and the dynamic-programming table." />
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --panel: #ffffff;
+    --ink: #1d1f24;
+    --muted: #61656f;
+    --line: #dddbd3;
+    --accent: #2457c5;
+    --accent-soft: #e3ebfb;
+    --h: #2f6f5e;
+    --h-soft: #dcefe8;
+    --v: #a8571c;
+    --v-soft: #f8e6d6;
+    --wait: #b23b3b;
+    --wait-soft: #f6dddd;
+    --lock: #6c6f78;
+    --lock-soft: #e7e7ea;
+    --good: #2c7a3f;
+    --code-bg: #f1f0ea;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171b; --panel: #1d2026; --ink: #e8e8ea; --muted: #9aa0ab; --line: #30343c;
+      --accent: #7aa2ff; --accent-soft: #23304d; --h: #6cc4a8; --h-soft: #1f3a33;
+      --v: #f0a46b; --v-soft: #43301f; --wait: #f08080; --wait-soft: #452727;
+      --lock: #a3a7b0; --lock-soft: #2c2f36; --good: #6fcf86; --code-bg: #181a1f;
+      --shadow: none; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171b; --panel: #1d2026; --ink: #e8e8ea; --muted: #9aa0ab; --line: #30343c;
+    --accent: #7aa2ff; --accent-soft: #23304d; --h: #6cc4a8; --h-soft: #1f3a33;
+    --v: #f0a46b; --v-soft: #43301f; --wait: #f08080; --wait-soft: #452727;
+    --lock: #a3a7b0; --lock-soft: #2c2f36; --good: #6fcf86; --code-bg: #181a1f;
+    --shadow: none; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.top { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.3rem; margin: 0 0 8px; }
+  h3 { font-size: 1rem; margin: 16px 0 6px; }
+  p { margin: 6px 0 10px; max-width: 72ch; }
+  .lede { color: var(--muted); max-width: 70ch; }
+  a { color: var(--accent); }
+  code, pre, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.86em; }
+  section.card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; margin: 20px 0; box-shadow: var(--shadow);
+  }
+  .num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: var(--panel); font-size: .85rem; font-weight: 700; margin-right: 8px; vertical-align: 2px; }
+  .muted { color: var(--muted); }
+  .small { font-size: .85rem; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+  textarea {
+    width: 100%; min-height: 190px; resize: vertical; padding: 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--code-bg); color: var(--ink);
+    font: 0.86rem/1.5 ui-monospace, Menlo, Consolas, monospace;
+  }
+  label.setting { display: grid; grid-template-columns: minmax(0, 1fr) 76px; overflow-wrap: anywhere; gap: 8px; align-items: center; font-size: .88rem; margin: 6px 0; }
+  input[type=number] { width: 76px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg); color: var(--ink); }
+  button {
+    font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  .errors { color: var(--wait); font-size: .9rem; white-space: pre-wrap; }
+  table.data { border-collapse: collapse; font-size: .85rem; width: 100%; }
+  table.data th, table.data td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
+  table.data th { color: var(--muted); font-weight: 600; }
+  .scroll-x { overflow-x: auto; max-width: 100%; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: .75rem; font-weight: 600; }
+  .tag.h { background: var(--h-soft); color: var(--h); }
+  .tag.v { background: var(--v-soft); color: var(--v); }
+  .tag.ev { background: var(--accent-soft); color: var(--accent); }
+
+  /* bars */
+  .bar { display: flex; height: 34px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); margin: 6px 0 2px; }
+  .seg { display: grid; place-items: center; font-size: .72rem; overflow: hidden; white-space: nowrap; border-right: 1px solid var(--panel); min-width: 2px; transition: background .15s, color .15s, opacity .15s; }
+  .seg.h { background: var(--h-soft); color: var(--h); }
+  .seg.v { background: var(--v-soft); color: var(--v); }
+  .seg.cur { background: var(--accent); color: var(--panel); }
+  .seg.done { opacity: .45; }
+  .seg.later { opacity: .25; }
+  .bar-label { font-size: .78rem; color: var(--muted); }
+
+  /* gantt */
+  .gantt { position: relative; margin-top: 8px; }
+  .lane { position: relative; height: 30px; margin: 4px 0; background: var(--code-bg); border-radius: 5px; }
+  .lane-name { font-size: .78rem; color: var(--muted); margin-top: 8px; }
+  .g { position: absolute; top: 0; bottom: 0; border-radius: 4px; font-size: .7rem; display: grid; place-items: center; overflow: hidden; white-space: nowrap; }
+  .g.h { background: var(--h); color: var(--panel); }
+  .g.v { background: var(--v); color: var(--panel); }
+  .g.tc { background: var(--v-soft); color: var(--v); border: 1px dashed var(--v); }
+  .g.lock { background: repeating-linear-gradient(45deg, var(--lock-soft), var(--lock-soft) 5px, transparent 5px, transparent 10px); color: var(--lock); border: 1px solid var(--lock-soft); }
+  .g.wait { background: var(--wait-soft); color: var(--wait); }
+  .event-line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--accent); opacity: .6; }
+  .axis { position: relative; height: 18px; font-size: .7rem; color: var(--muted); }
+  .axis span { position: absolute; transform: translateX(-50%); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  /* stepper */
+  .stepper { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 20px; }
+  @media (max-width: 920px) { .stepper { grid-template-columns: minmax(0, 1fr); } }
+  .code { background: var(--code-bg); border-radius: 10px; padding: 10px 0; font: .82rem/1.6 ui-monospace, Menlo, Consolas, monospace; }
+  .code .ln { display: grid; grid-template-columns: 30px 1fr; padding: 1px 10px 1px 0; border-left: 3px solid transparent; }
+  .code .ln b { color: var(--muted); font-weight: 400; text-align: right; padding-right: 10px; }
+  .code .ln span { white-space: pre-wrap; }
+  .code .ln.on { background: var(--accent-soft); border-left-color: var(--accent); }
+  .code .ln.on2 { background: color-mix(in srgb, var(--good) 18%, transparent); border-left-color: var(--good); }
+  .code .cm { color: var(--muted); }
+  .controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .controls .count { font-size: .82rem; color: var(--muted); margin-left: 6px; }
+  .narrate { min-height: 4.8em; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); font-size: .92rem; }
+  .narrate .better { color: var(--good); font-weight: 700; }
+  .narrate .worse { color: var(--muted); font-weight: 700; }
+  .vars { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .vars span { font: .8rem ui-monospace, Menlo, Consolas, monospace; background: var(--code-bg); padding: 2px 8px; border-radius: 6px; }
+  table.dp { border-collapse: separate; border-spacing: 3px; font: .8rem ui-monospace, Menlo, Consolas, monospace; }
+  table.dp th { color: var(--muted); font-weight: 500; padding: 2px 6px; text-align: center; }
+  table.dp th.rowh { text-align: right; }
+  table.dp td { min-width: 52px; height: 42px; text-align: center; border-radius: 6px; background: var(--code-bg); border: 2px solid transparent; transition: background .15s; }
+  table.dp td small { display: block; color: var(--muted); font-size: .68rem; }
+  table.dp td.src { background: var(--h-soft); border-color: var(--h); }
+  table.dp td.dst { border-color: var(--accent); }
+  table.dp td.upd { background: color-mix(in srgb, var(--good) 22%, transparent); }
+  table.dp td.path { background: var(--accent); color: var(--panel); }
+  table.dp td.path small { color: var(--panel); opacity: .8; }
+  table.dp td.inf { color: var(--muted); }
+  .kbd { font: .75rem ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .slider-row { display: grid; grid-template-columns: 170px 1fr 54px; gap: 10px; align-items: center; font-size: .86rem; }
+  @media (max-width: 560px) { .slider-row { grid-template-columns: 1fr 44px; } .slider-row .sl-name { grid-column: 1 / -1; } }
+  .big { font-size: 1.5rem; font-weight: 700; }
+  .ok { color: var(--good); }
+  .bad { color: var(--wait); }
+  pre.out { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; margin: 6px 0; }
+  .theme-toggle { font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>How the sync planner decides</h1>
+      <div class="lede">An interactive walkthrough of <code>tools/sync_plan.py</code>. Change the op list or the settings and every section updates. The engine on this page is a JavaScript copy of the Python that is tested against the same reference cases.</div>
+    </div>
+    <button class="theme-toggle" id="theme">Light / dark</button>
+  </header>
+
+  <section class="card">
+    <h2><span class="num">0</span>Your input</h2>
+    <div class="grid2">
+      <div>
+        <p class="small muted">The Mastercam op list, in run order for each spindle: <code>&lt;name&gt;_2&lt;H/V&gt; &lt;offset&gt;&lt;rotation&gt;&lt;tool&gt; := &lt;min&gt;:&lt;sec&gt;</code></p>
+        <textarea id="ops" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="primary" id="run">Run</button>
+          <button id="reset-ops">Back to the example</button>
+        </div>
+        <div class="errors" id="errors"></div>
+      </div>
+      <div>
+        <p class="small muted">Settings (same names as in <code>sync_plan.py</code>)</p>
+        <label class="setting">SAFETY_SECONDS <input type="number" id="SAFETY_SECONDS" min="0" step="1"></label>
+        <label class="setting">ROTATE_LOCKOUT_SECONDS <input type="number" id="ROTATE_LOCKOUT_SECONDS" min="0" step="1"></label>
+        <label class="setting">TOOL_CHANGE_LOCKOUT_SECONDS <input type="number" id="TOOL_CHANGE_LOCKOUT_SECONDS" min="0" step="1"></label>
+        <label class="setting">V_TOOL_CHANGE_SECONDS <input type="number" id="V_TOOL_CHANGE_SECONDS" min="0" step="1"></label>
+        <label class="setting">START_IS_B_EVENT <input type="checkbox" id="START_IS_B_EVENT" style="justify-self:start"></label>
+        <p class="small muted">Lockout = seconds V cannot cut while H moves the B. V's tool change happens before its <code>(WAIT)</code>, while H is still cutting or positioning.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">1</span>The question</h2>
+    <p>Two things are already fixed: <b>H's order</b> and <b>V's order</b>. H's list gets cut into <b>stretches</b> wherever H changes tool or rotation (a B event), because the B moves there and nothing may cut. V's list has to be cut into the same number of groups: one group of V work per H stretch. A group can be empty.</p>
+    <p>So the <i>only</i> decision is <b>where to cut V's list</b>. Each cut is a V <code>(WAIT)</code>. The best cuts are the ones that make the whole cycle shortest, which is the same as making H wait the least.</p>
+    <div class="bar-label">H stretches (fixed by the list)</div>
+    <div class="bar" id="q-h"></div>
+    <div class="bar-label">V pieces (cut points to choose)</div>
+    <div class="bar" id="q-v"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">2</span>Try it yourself</h2>
+    <p>Each slider is one B event: how many V pieces V finishes before that B move. Move them and watch the cycle. Then compare with the planner's answer.</p>
+    <div id="sliders"></div>
+    <div class="row" style="align-items:center;margin:10px 0">
+      <div>Your cycle: <span class="big" id="mine-cycle"></span></div>
+      <div>Fill each stretch as full as it fits: <span class="big bad" id="greedy-cycle"></span></div>
+      <div>Planner's best: <span class="big ok" id="best-cycle"></span></div>
+    </div>
+    <div class="row" style="margin-bottom:6px">
+      <button id="use-greedy">Show "fill it up" cuts</button>
+      <button id="use-best">Show the planner's cuts</button>
+    </div>
+    <p class="small muted">"Fill it up" looks sensible but it can leave too much for a short stretch later. The planner looks at every stretch together, which is why it needs the table in section 5.</p>
+    <div id="mine-gantt"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">3</span>Why not try every split? (and why it's not the traveling salesman)</h2>
+    <p>The traveling-salesman problem is hard because it has to choose an <i>order</i>, and the number of orders explodes. Here both orders are fixed by the list. Only the cut points are left, and those can be solved exactly with a table. This is called <b>dynamic programming</b>.</p>
+    <div class="scroll-x"><table class="data" id="counts"></table></div>
+    <p class="small muted">"Every split" = every way to place the cuts (the test file checks the planner against exactly this for small lists). "Table" = how many cells × candidates the planner actually evaluates.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">4</span>The ingredients</h2>
+    <div class="grid2">
+      <div>
+        <h3><span class="tag h">H</span> stretches</h3>
+        <p class="small">Walk H in order. A new stretch starts when the tool or the rotation digit changes. Its lockout is the B-move time V has to sit out.</p>
+        <div class="scroll-x"><table class="data" id="t-stretch"></table></div>
+      </div>
+      <div>
+        <h3><span class="tag v">V</span> pieces</h3>
+        <p class="small">V changes tools <i>before</i> its <code>(WAIT)</code>, so each V op's tool change is moved onto the op before it. <code>pre</code> = V's very first tool change.</p>
+        <div class="scroll-x"><table class="data" id="t-pieces"></table></div>
+      </div>
+    </div>
+    <h3>Cost of one stretch</h3>
+    <pre class="out">stretch_cost(s, W):                      W = V's pieces in this stretch
+  if s is the first stretch and the cycle does NOT start with a B event:
+      return max(H[s], pre + W)              V just runs alongside H
+  lead = pre if s is the first stretch else 0  (H waits for V's first tool change)
+  return lead + max(H[s], lockout[s] + W)    V starts after the B move</pre>
+    <p class="small">If <code>lockout + W</code> is bigger than <code>H</code>, H waits the difference. That's the only place H ever waits.</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">5</span>Step through the table</h2>
+    <p><code>best[s][j]</code> = the shortest time to finish H stretches 1…s with V pieces 1…j done. Each cell looks at every <code>i</code>: "V had done i pieces before stretch s, and does pieces i+1…j during it", and keeps the cheapest. Every cell only needs the row above it, so nothing is ever tried twice.</p>
+    <div class="controls">
+      <button id="first" title="Start">⏮</button>
+      <button id="prev" title="Back (←)">◀</button>
+      <button id="play" class="primary" title="Play / pause (space)">▶ Play</button>
+      <button id="next" title="Forward (→)">▶</button>
+      <button id="next-row" title="Jump to the next stretch">next stretch ⤓</button>
+      <button id="last" title="End">⏭</button>
+      <label class="small muted" style="display:flex;gap:6px;align-items:center;margin-left:8px">speed <input type="range" id="speed" min="40" max="1200" value="520" style="width:110px;direction:rtl"></label>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="stepper">
+      <div>
+        <div class="code" id="code"></div>
+        <div class="vars" id="vars"></div>
+      </div>
+      <div>
+        <div class="narrate" id="narrate"></div>
+        <div class="bar-label" style="margin-top:10px">H stretches</div>
+        <div class="bar" id="s-h"></div>
+        <div class="bar-label">V pieces: <span style="color:var(--accent)">■</span> this stretch's candidate group</div>
+        <div class="bar" id="s-v"></div>
+        <div class="scroll-x" style="margin-top:10px"><table class="dp" id="dp"></table></div>
+        <p class="small muted">Rows: stretches done (s). Columns: V pieces done (j). Small number = <code>from</code> (where that stretch's V group started). <span class="kbd">←</span> <span class="kbd">→</span> <span class="kbd">space</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">6</span>The answer</h2>
+    <p>Walk back from the bottom-right cell: <code>from[s][j]</code> says where stretch s's V group started, which is the cell to look at in the row above. Each step back is one V <code>(WAIT)</code>.</p>
+    <div id="answer-gantt"></div>
+    <h3>Timeline (same text the script prints)</h3>
+    <pre class="out" id="timeline"></pre>
+    <h3>Marked list (what <code>sync_plan.py</code> writes)</h3>
+    <pre class="out" id="marked"></pre>
+  </section>
+
+  <section class="card">
+    <h2><span class="num">7</span>Converting it: where each step lives</h2>
+    <div class="scroll-x"><table class="data">
+      <tr><th>Step</th><th>Python (<code>tools/sync_plan.py</code>)</th><th>What to carry over exactly</th></tr>
+      <tr><td>Read the list</td><td><code>parse_ops</code>, <code>LINE</code></td><td>offset / rotation / tool digits; time = min·60 + sec + SAFETY_SECONDS</td></tr>
+      <tr><td>B events</td><td><code>event_lockout</code></td><td>tool change wins over rotation; first op is an event only if START_IS_B_EVENT</td></tr>
+      <tr><td>H stretches</td><td><code>h_stretches</code></td><td>new stretch only at an event; H time = sum of its ops</td></tr>
+      <tr><td>V pieces</td><td><code>v_tool_change</code>, <code>v_pieces</code></td><td>tool change = min(V_TOOL_CHANGE_SECONDS, op time), only when the tool differs; first op always counts</td></tr>
+      <tr><td>Stretch cost</td><td><code>stretch_timing</code></td><td>the three cases in section 4</td></tr>
+      <tr><td>The table</td><td><code>plan_v</code></td><td>three loops s → j → i; strict <code>&lt;</code> so ties keep the earliest split</td></tr>
+      <tr><td>Walk back</td><td>end of <code>plan_v</code></td><td>from the bottom-right cell up to row 0</td></tr>
+      <tr><td>Markers</td><td><code>render</code>; NC placement in <code>sync_insert.py</code></td><td>H pair at each event; one V <code>(WAIT)</code> per event, stacked when V's group is empty</td></tr>
+    </table></div>
+    <p class="small">Check a converted version against <code>tools/conformance/cases</code> (see <code>tools/SYNC_LOGIC.md</code>, section 8). If it matches all 9 cases, it makes the same decisions as the Python.</p>
+  </section>
+  <p class="small muted">Unlisted page. Illustrative data only. <a href="../">Back to Spindle Sync</a></p>
+</main>
+<script type="module" src="tutorial.js"></script>
+</body>
+</html>
