@@ -57,11 +57,13 @@ export function setupImportDialog(app) {
     app.toast('Programs imported');
   };
 
-  $('#demo-btn').onclick = () => {
-    app.ws.loadExample();
+  const loadExample = (kind, message) => {
+    app.ws.loadExample(kind);
     app.ui.selected = null;
     app.ui.sourceDrafts = {};
     app.refreshAfterEdit();
-    app.toast('Example programs loaded');
+    app.toast(message);
   };
+  $('#demo-btn').onclick = () => loadExample('simple', 'Example programs loaded');
+  $('#sync-demo-btn').onclick = () => loadExample('sync', 'Sync example loaded: two parts, 5 B events, op-list times');
 }

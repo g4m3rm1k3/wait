@@ -5,6 +5,8 @@ import { serializeProgram, moveBlock } from '../src/nc/edit.js';
 import { alignChannels } from '../src/sync/alignment.js';
 import { estimateCycle } from '../src/timing/estimate.js';
 import { DEMO } from '../src/nc/demo-programs.js';
+import { SYNC_EXAMPLE, PLANNED_SECONDS } from '../src/nc/demo-complex.js';
+import { opTimesToOverrides } from '../src/nc/example-times.js';
 
 function parsePair(sources = DEMO, settings = {}) {
   return {
@@ -105,4 +107,14 @@ test('moving a parsed wait preserves its source text and both display source ord
   const alignment = alignChannels(reparsed, pair.v);
   assert.deepEqual(rowIds(alignment, 'h'), reparsed.map((block) => block.id));
   assert.deepEqual(rowIds(alignment, 'v'), pair.v.map((block) => block.id));
+});
+
+test('sync example: the app schedule matches the Python planner using the op-list times', () => {
+  const blocks = { h: parseProgram(SYNC_EXAMPLE.sources.h, {}, 'h').blocks, v: parseProgram(SYNC_EXAMPLE.sources.v, {}, 'v').blocks };
+  assert.equal(blocks.h.filter((block) => block.kind === 'macro-wait').length, 5);
+  assert.equal(blocks.v.filter((block) => block.kind === 'macro-wait').length, 5);
+  const result = estimateCycle(blocks.h, blocks.v, {}, opTimesToOverrides(blocks, SYNC_EXAMPLE.times));
+  assert.equal(result.complete, true);
+  assert.ok(Math.abs(result.duration - PLANNED_SECONDS) < 1e-6, `${result.duration} vs planned ${PLANNED_SECONDS}`);
+  assert.ok(Math.abs(result.channels.h.wait - 8) < 1e-6); // H waits only for V's first tool change
 });

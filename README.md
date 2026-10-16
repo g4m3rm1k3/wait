@@ -6,6 +6,8 @@ A local, browser based NC editor for two linked channels of a four-channel machi
 
 Open the hosted copy at <https://g4m3rm1k3.github.io/wait/>, or serve this folder with any static server (for example VS Code Live Server) and open `index.html`. Opening the file directly with `file://` does not work because browsers block ES modules there. With Node.js 20+, you can also double-click **Start Spindle Sync.cmd** on Windows or run `npm start` and open <http://127.0.0.1:4173>. There are no packages to install, remote libraries, external fonts, or program uploads. The server binds to loopback only.
 
+**Load example** shows a small illustrative pair. **Sync example** loads a two-part job (G54/G55, 5 B events) whose `WHILE`/`DO` sync code was placed by `tools/sync_insert.py`, with each operation's time taken from the Mastercam op list. Its estimated cycle matches the planner's. See `tools/SYNC_LOGIC.md`.
+
 ## Arrange programs
 
 1. Import two ASCII / UTF-8 NC files or paste your programs.

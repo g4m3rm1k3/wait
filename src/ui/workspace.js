@@ -14,6 +14,8 @@ import { serializeProgram, moveBlock, moveRange, moveIntoBlock } from '../nc/edi
 import { DEFAULT_WAIT_PATTERN, validateWaitPattern } from '../nc/wait-pattern.js';
 import { isProgramBoundary, TITLE_PROGRAM_HEADER, TITLE_PROGRAM_END } from '../nc/titles.js';
 import { DEMO } from '../nc/demo-programs.js';
+import { SYNC_EXAMPLE } from '../nc/demo-complex.js';
+import { opTimesToOverrides } from '../nc/example-times.js';
 import { alignChannels } from '../sync/alignment.js';
 import { estimateCycle } from '../timing/estimate.js';
 import { CHANNELS } from './dom.js';
@@ -206,11 +208,23 @@ export class Workspace {
     this.recalculate();
   }
 
-  loadExample() {
+  /** @param {'simple'|'sync'} kind  'sync' = the two-part sync example with op-list times */
+  loadExample(kind = 'simple') {
     this.remember();
-    Object.assign(this.state, { sources: { ...DEMO }, filenames: { ...DEFAULT_FILENAMES }, overrides: {}, example: true });
+    const sync = kind === 'sync';
+    Object.assign(this.state, {
+      sources: { ...(sync ? SYNC_EXAMPLE.sources : DEMO) },
+      filenames: { ...(sync ? SYNC_EXAMPLE.filenames : DEFAULT_FILENAMES) },
+      overrides: {},
+      example: true,
+    });
     this.blocks = { h: [], v: [] };
     this.recalculate();
+    if (sync) {
+      // Manual times need block ids, so they are set after the first parse.
+      this.state.overrides = opTimesToOverrides(this.blocks, SYNC_EXAMPLE.times);
+      this.recalculate();
+    }
   }
 
   /** @param {{h: {source: string, filename: string}, v: {...}}} programs */

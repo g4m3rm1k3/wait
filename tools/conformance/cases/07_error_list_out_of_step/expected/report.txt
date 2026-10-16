@@ -1,0 +1,12 @@
+(settings)
+sync_plan.SAFETY_SECONDS = 6
+sync_plan.ROTATE_LOCKOUT_SECONDS = 4
+sync_plan.TOOL_CHANGE_LOCKOUT_SECONDS = 10
+sync_plan.V_TOOL_CHANGE_SECONDS = 8
+sync_plan.START_IS_B_EVENT = True
+sync_insert.SKIP_VAR_BASE = 1002
+sync_insert.WORK_OFFSET_BASE = 53
+sync_insert.B_CALC_CALL = P8887
+
+(errors and warnings)
+ERROR   H line 1: program has 2 ops (N label lines) but the list has 3 H ops.

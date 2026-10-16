@@ -1,0 +1,17 @@
+(settings)
+sync_plan.SAFETY_SECONDS = 6
+sync_plan.ROTATE_LOCKOUT_SECONDS = 4
+sync_plan.TOOL_CHANGE_LOCKOUT_SECONDS = 10
+sync_plan.V_TOOL_CHANGE_SECONDS = 8
+sync_plan.START_IS_B_EVENT = True
+sync_insert.SKIP_VAR_BASE = 1002
+sync_insert.WORK_OFFSET_BASE = 53
+sync_insert.B_CALC_CALL = P8887
+
+(timeline)
+ 1.      0s tool change H T1         36s | V nothing to cut | H waits 0s
+ 2.     36s tool change H T2         36s | V nothing to cut | H waits 0s
+        72s end of cycle  (V times include the tool change for its next op)
+
+(errors and warnings)
+none

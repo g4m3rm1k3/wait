@@ -1,0 +1,12 @@
+(settings)
+sync_plan.SAFETY_SECONDS = 6
+sync_plan.ROTATE_LOCKOUT_SECONDS = 4
+sync_plan.TOOL_CHANGE_LOCKOUT_SECONDS = 10
+sync_plan.V_TOOL_CHANGE_SECONDS = 8
+sync_plan.START_IS_B_EVENT = True
+sync_insert.SKIP_VAR_BASE = 1002
+sync_insert.WORK_OFFSET_BASE = 53
+sync_insert.B_CALC_CALL = P8887
+
+(errors and warnings)
+ERROR   H line 25: op 2 moves B or calls a tool after its skip line; that move would be skipped and cannot be synced. Put B/T before the IF line.
