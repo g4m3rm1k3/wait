@@ -191,3 +191,44 @@
   border-color: #86535e;
   color: #edbac4;
 }
+.auto-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 0;
+}
+.auto-clear-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.auto-marker-help summary {
+  color: var(--mint);
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 12px;
+}
+.auto-sync-results {
+  overflow-x: auto;
+  margin-top: 15px;
+}
+.auto-sync-results table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  text-align: left;
+}
+.auto-sync-results th,
+.auto-sync-results td {
+  padding: 9px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.auto-sync-results th {
+  color: #97a8be;
+  font-weight: 500;
+}
+.auto-sync-results code {
+  font: 10px var(--mono);
+  color: var(--mint);
+}

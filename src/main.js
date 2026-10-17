@@ -20,6 +20,7 @@ import { setupDialogClosing } from './ui/dialogs/common.js';
 import { setupSettingsDialog } from './ui/dialogs/settings.js';
 import { setupImportDialog } from './ui/dialogs/import.js';
 import { setupAddSyncDialog } from './ui/dialogs/add-sync.js';
+import { setupAutoSyncDialog } from './ui/dialogs/auto-sync.js';
 import { setupExportDialog } from './ui/dialogs/export.js';
 
 const app = new App();
@@ -32,6 +33,7 @@ setupDialogClosing();
 setupSettingsDialog(app);
 setupImportDialog(app);
 setupAddSyncDialog(app);
+setupAutoSyncDialog(app);
 setupExportDialog(app);
 
 // Apply a half-finished edit before the page closes, so it is saved.

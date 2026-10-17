@@ -18,6 +18,8 @@ import { SYNC_EXAMPLE } from '../nc/demo-complex.js';
 import { opTimesToOverrides } from '../nc/example-times.js';
 import { alignChannels } from '../sync/alignment.js';
 import { estimateCycle } from '../timing/estimate.js';
+import { planWaitCodes, remapWaitOverrides } from '../sync/auto-plan.js';
+import { clearWaitCodes } from '../sync/wait-codes.js';
 import { CHANNELS } from './dom.js';
 
 const STORAGE_KEY = 'spindle-sync-workspace-v1';
@@ -264,6 +266,48 @@ export class Workspace {
 
   setCompact(compact) {
     this.state.compact = compact;
+  }
+
+  /** Compute a reviewable plan without changing either source or undo history. */
+  previewWaitCodes(options = {}) {
+    const plan = planWaitCodes(this.state.sources, this.state.settings, this.state.overrides, {
+      ...options, blocks: this.blocks,
+    });
+    return { ...plan, workspaceSnapshot: this.snapshot() };
+  }
+
+  /** Apply exactly the preview the user reviewed; reject an obsolete preview. */
+  applyWaitPlan(plan) {
+    if (!plan || plan.errors?.length || !plan.sources) throw new Error('Preview a complete wait plan first.');
+    if (plan.workspaceSnapshot !== this.snapshot()) throw new Error('The workspace changed. Preview placement again before applying.');
+    if (CHANNELS.every((channel) => plan.sources[channel] === this.state.sources[channel])) return false;
+    this.remember();
+    this.state.sources = { ...plan.sources };
+    this.state.overrides = { ...plan.overrides };
+    if (plan.pathGeometry) this.state.settings = { ...this.state.settings, pathGeometry: plan.pathGeometry };
+    this.state.blockIdentities = plan.blockIdentities;
+    this.blocks = { h: [], v: [] };
+    this.recalculate();
+    return true;
+  }
+
+  /** Remove only the chosen paired waits, leaving other NC instructions in place. */
+  clearWaitCodes(scope = 'generated') {
+    const result = Object.fromEntries(CHANNELS.map((channel) => [channel,
+      clearWaitCodes(this.state.sources[channel], this.state.settings, { scope }),
+    ]));
+    const removed = CHANNELS.reduce((total, channel) => total + result[channel].removed, 0);
+    const notes = [...new Set(CHANNELS.flatMap((channel) => result[channel].notes))];
+    if (!removed) return { removed, notes };
+    const sources = Object.fromEntries(CHANNELS.map((channel) => [channel, result[channel].source]));
+    const mapped = remapWaitOverrides(this.blocks, sources, this.state.settings, this.state.overrides);
+    this.remember();
+    this.state.sources = sources;
+    this.state.overrides = mapped.overrides;
+    this.state.blockIdentities = mapped.blockIdentities;
+    this.blocks = { h: [], v: [] };
+    this.recalculate();
+    return { removed, notes };
   }
 
   clampToMovable(channel, to) {
